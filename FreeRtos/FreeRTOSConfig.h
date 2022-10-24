@@ -54,6 +54,7 @@
 
 //#define vApplicationStackOverflowHook 1
 
+#define configUSE_QUEUE_SETS      1
 
 #define configUSE_PREEMPTION			1
 #define configUSE_IDLE_HOOK				0

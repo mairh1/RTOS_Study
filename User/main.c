@@ -10,63 +10,50 @@
 static void prvSetupHardware(void);
 
 /* 函数声明 */
-static int sum = 0;
+
 static TaskHandle_t xHandleTask1;
-static QueueHandle_t xQueueCalcHandle;
-static QueueHandle_t xQueueUARTHandle;
+static TaskHandle_t xHandleTask2;
+static TaskHandle_t xHandleTask3;
+
+static QueueHandle_t xQueueHandle1;
+static QueueHandle_t xQueueHandle2;
+static QueueSetHandle_t xQueueSet;
 /*-----------------------------------------------------------------------------------------*/
  /**********************
  * RTOS任务函数 *
  **********************/
  
-int InitUARTLock(void)
-{
-	int val;
-	xQueueUARTHandle = xQueueCreate(1,sizeof(int));
-	if(xQueueUARTHandle==NULL)
-	{
-		printf("can not create xQueueUARTHandle\r\n");
-		return -1;
-	}
-	xQueueSend(xQueueUARTHandle,&val,portMAX_DELAY);
-	return 0;
-}
-
-void GetUARTLock(void)
-{
-	int val;
-	xQueueReceive(xQueueUARTHandle,&val,portMAX_DELAY);
-}
-
-void PutUARTLock(void)
-{
-	int val;
-	xQueueSend(xQueueUARTHandle,&val,portMAX_DELAY);
-}
-
 void TaskFuntion1(void * param)
 {
-	volatile int i = 0;
+	int i = 0;
 	while(1)
 	{
-		for(i = 0; i < 10000000; i++)
-			sum++;
-		xQueueSend(xQueueCalcHandle,&sum,portMAX_DELAY);
-		sum = 1;
-
+		xQueueSend(xQueueHandle1,&i,portMAX_DELAY);
+		i++;
+		vTaskDelay(10);
 	}
 }
 
 void TaskFuntion2(void * param)
 {
-	int val;
-	
+	int i = -1;
 	while(1)
 	{
-		LED_OFF(GPIO_Pin_0);
-		xQueueReceive(xQueueCalcHandle ,&val, portMAX_DELAY);
-		LED_ON(GPIO_Pin_0);
-		printf("sum = %d\r\n",val);
+		xQueueSend(xQueueHandle2,&i,portMAX_DELAY);
+		i--;
+		vTaskDelay(20);
+	}
+}
+void TaskFuntion3(void * param)
+{
+	int i;
+	QueueSetMemberHandle_t handle;
+	while(1)
+	{
+		handle=xQueueSelectFromSet(xQueueSet,portMAX_DELAY);
+		xQueueReceive(handle,&i,0);
+		printf("i = %d\n\r",i);
+		
 	}
 }
 
@@ -74,9 +61,7 @@ void TaskGenericFunctino(void * param)
 {
 	while(1)
 	{
-		GetUARTLock();
 		printf("%s\r\n",(char *) param);
-		PutUARTLock();
 		vTaskDelay(1);
 	}
 }
@@ -90,20 +75,31 @@ int main(void)
 	/* RTOS硬件初始化 */
 	prvSetupHardware();
 	
-	/* RTOS队列创建 */
-	xQueueCalcHandle = xQueueCreate(2,sizeof(int));
-	if(xQueueCalcHandle==NULL)
+	/* RTOS队列 */
+	xQueueHandle1 = xQueueCreate(2,sizeof(int));
+	if(xQueueHandle1==NULL)
 	{
-		printf("can not create xQueueCalcHandle\r\n");
+		printf("can not create xQueueHandle1\r\n");
 	}
-	InitUARTLock();
+	xQueueHandle2 = xQueueCreate(2,sizeof(int));
+	if(xQueueHandle2==NULL)
+	{
+		printf("can not create xQueueHandle2\r\n");
+	}
+	/* RTOS队列集 */
+	xQueueSet = xQueueCreateSet(4);
+	
+	/* 添加进队列集 */
+	xQueueAddToSet(xQueueHandle1,xQueueSet);
+	xQueueAddToSet(xQueueHandle2,xQueueSet);
 	
 	/* RTOS任务 */
 	xTaskCreate(TaskFuntion1,"Task1",100,NULL,1,&xHandleTask1);
-	xTaskCreate(TaskFuntion2,"Task2",100,NULL,1,NULL);
+	xTaskCreate(TaskFuntion2,"Task2",100,NULL,1,&xHandleTask2);
+	xTaskCreate(TaskFuntion3,"Task3",100,NULL,1,&xHandleTask3);
 	
-	xTaskCreate(TaskGenericFunctino,"Task3",100,"Task 3 is Running",1,NULL);
-	xTaskCreate(TaskGenericFunctino,"Task4",100,"Task 4 is Running",1,NULL);
+//	xTaskCreate(TaskGenericFunctino,"Task3",100,"Task 3 is Running",1,NULL);
+//	xTaskCreate(TaskGenericFunctino,"Task4",100,"Task 4 is Running",1,NULL);
 	
 	/* 启用调度器 */
 	vTaskStartScheduler();
